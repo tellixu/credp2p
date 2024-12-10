@@ -81,7 +81,7 @@ func main() {
 	}
 	credHost.SetHandler(protocol_x, ProtocolTT)
 	//---------------
-	PingTest(credHost)
+	//PingTest(credHost)
 
 	signals := make(chan os.Signal)
 	signal.Notify(signals, os.Interrupt, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
