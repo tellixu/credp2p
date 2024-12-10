@@ -1,10 +1,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"gitee.com/credata/credp2p/p2p"
+	"github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p/core/network"
 	"io"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
 )
 
 //# 阿里boot
@@ -36,6 +43,8 @@ const (
 	protocol_x = "cred_p2p/tt/1.0"
 )
 
+var logger = log.Logger("cred.sys")
+
 func main() {
 	nf := []p2p.NetConfigItem{
 		{IP: "47.115.215.250", Port: 9879, PeerID: "QmahyM9Sav3A5XeKVpJrfBquKc4m5YNcDze5brVhJiX3Lz"},
@@ -60,16 +69,45 @@ func main() {
 	}
 	fmt.Println("id=", id)
 
+	newCtx, cancel := context.WithCancel(context.Background())
+
 	privateKey, _ := p2p.GetPeerKey(privateKeyStr)
-	credHost, err := p2p.NewHost(privateKey, cfg)
+	credHost, err := p2p.NewHost(newCtx, privateKey, cfg)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
 	credHost.SetHandler(protocol_x, ProtocolTT)
+
+	signals := make(chan os.Signal)
+	signal.Notify(signals, os.Interrupt, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
+	//go func() {
+	//	<-signals
+	//	cancel()
+	//}()
+	q := <-signals
+	logger.Infof("received exit signal '%s'", q)
+	cancel()
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	finishedCh := make(chan struct{})
+	go func() {
+		select {
+		case <-time.After(3 * time.Second):
+			logger.Fatal("exit timeout reached: terminating")
+		case <-finishedCh:
+			// ok
+			wg.Done()
+		case sig := <-signals:
+			logger.Fatalf("duplicate exit signal %s: terminating", sig)
+		}
+	}()
+	finishedCh <- struct{}{}
+	wg.Wait()
 }
 
 func ProtocolTT(st network.Stream) {
+	fmt.Println("assssssssss")
 	_, err := io.Copy(st, st)
 
 	if err != nil {

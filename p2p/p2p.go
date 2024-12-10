@@ -18,7 +18,10 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	tls "github.com/libp2p/go-libp2p/p2p/security/tls"
 	"github.com/multiformats/go-multiaddr"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -46,14 +49,14 @@ type CredHost struct {
 	cfg *Config
 }
 
-func NewHost(privateKey crypto.PrivKey, cfg *Config) (*CredHost, error) {
+func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*CredHost, error) {
 	if len(cfg.BootstrapAddr) == 0 {
 		logger.Warn("BootstrapAddr is empty")
 		return nil, fmt.Errorf("BootstrapAddr is empty")
 	}
 	BootstrapPeers = cfg.GetBootstrapAddr()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	credHost := &CredHost{
 		ctx:       ctx,
 		cancel:    cancel,
@@ -230,4 +233,15 @@ func (d *CredHost) SetHandler(pid protocol.ID, handler network.StreamHandler) {
 }
 func (d *CredHost) RemoveHandler(pid protocol.ID) {
 	d.host.RemoveStreamHandler(pid)
+}
+
+func ContextWithSignal(ctx context.Context) context.Context {
+	newCtx, cancel := context.WithCancel(ctx)
+	signals := make(chan os.Signal)
+	signal.Notify(signals, os.Interrupt, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
+	go func() {
+		<-signals
+		cancel()
+	}()
+	return newCtx
 }
