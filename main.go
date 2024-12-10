@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"gitee.com/credata/credp2p/p2p"
 	"github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"io"
 	"os"
 	"os/signal"
@@ -78,6 +80,8 @@ func main() {
 		return
 	}
 	credHost.SetHandler(protocol_x, ProtocolTT)
+	//---------------
+	PingTest(credHost)
 
 	signals := make(chan os.Signal)
 	signal.Notify(signals, os.Interrupt, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
@@ -115,4 +119,42 @@ func ProtocolTT(st network.Stream) {
 	} else {
 		_ = st.Close()
 	}
+}
+
+func PingTest(host *p2p.CredHost) {
+	peerIdStr := "12D3KooWAD5HhGmgByW5F6wQ1KzcWfYH6NnGRwXqCfdconPvwjDr"
+	peerId, _ := peer.Decode(peerIdStr)
+
+	for i := 0; i < 3; i++ {
+		fmt.Printf("begin:%d", i)
+		pInfo, err := host.FindPeer(context.Background(), peerId)
+		if err != nil {
+			fmt.Println(err.Error())
+			fmt.Println("wait..........")
+			time.Sleep(time.Minute)
+			continue
+		}
+		for _, addr := range pInfo.Addrs {
+			fmt.Println(addr.String())
+		}
+		st, err := host.NewStream(context.Background(), peerId, protocol_x)
+		if err != nil {
+			fmt.Println(err.Error)
+			return
+		}
+		_, _ = st.Write([]byte("hello"))
+		r := bufio.NewReader(st)
+		buff := make([]byte, 1024)
+		l, err := r.Read(buff)
+		if err != nil {
+			fmt.Println(err.Error)
+			return
+		}
+
+		fmt.Println(string(buff[:l]))
+
+		break
+
+	}
+
 }
