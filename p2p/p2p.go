@@ -14,7 +14,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/core/routing"
-	drouting "github.com/libp2p/go-libp2p/p2p/discovery/routing"
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	tls "github.com/libp2p/go-libp2p/p2p/security/tls"
@@ -66,14 +65,14 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 	}
 
 	listenerAddStrs := []string{
-		fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", cfg.P2pPort),                      // tcp连接
-		fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1", cfg.P2pPort),              // 用于QUIC传输的UDP端点
-		fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1/webtransport", cfg.P2pPort), // 用于QUIC传输的UDP端点
+		fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", cfg.P2pPort),         // tcp连接
+		fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1", cfg.P2pPort), // 用于QUIC传输的UDP端点
+		//fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1/webtransport", cfg.P2pPort), // 用于QUIC传输的UDP端点
 
 		// :: 格式的ipv6，支持所有的ipv4和ipv6的访问
-		fmt.Sprintf("/ip6/::/tcp/%d", cfg.P2pPort),                      // tcp连接
-		fmt.Sprintf("/ip6/::/udp/%d/quic-v1", cfg.P2pPort),              // 用于QUIC传输的UDP端点
-		fmt.Sprintf("/ip6/::/udp/%d/quic-v1/webtransport", cfg.P2pPort), // 用于QUIC传输的UDP端点
+		fmt.Sprintf("/ip6/::/tcp/%d", cfg.P2pPort),         // tcp连接
+		fmt.Sprintf("/ip6/::/udp/%d/quic-v1", cfg.P2pPort), // 用于QUIC传输的UDP端点
+		//fmt.Sprintf("/ip6/::/udp/%d/quic-v1/webtransport", cfg.P2pPort), // 用于QUIC传输的UDP端点
 	}
 
 	listenerAddr, err := ToMAddr(listenerAddStrs)
@@ -163,8 +162,9 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 	//pubSubOption:=[]ps.Option{
 	//	ps.with
 	//}
-
-	pubsub, err := ps.NewGossipSub(credHost.ctx, h, ps.WithDiscovery(drouting.NewRoutingDiscovery(credHost.dht)))
+	// 允许使用limited连接，中继时会用到
+	//pubsub, err := ps.NewGossipSub(network.WithAllowLimitedConn(ctx, "credata_p2p_pubsub"), h, ps.WithDiscovery(drouting.NewRoutingDiscovery(credHost.dht)))
+	pubsub, err := ps.NewGossipSub(network.WithAllowLimitedConn(ctx, "credata_p2p_pubsub"), h)
 	if err != nil {
 		logger.Warn(err.Error())
 		return nil, err

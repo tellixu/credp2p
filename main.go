@@ -49,6 +49,24 @@ const (
 var logger = log.Logger("cred.sys")
 
 func main() {
+	lvl, _ := log.LevelFromString("info")
+	//log.SetAllLoggers(lvl)
+	log.SetupLogging(log.Config{
+		Format: log.ColorizedOutput,
+		//Stderr: true,
+		Stdout: true,
+		//File:   "credLan.log", // todo 输出到文件，需要注意文件的地址判断，否则会会出现错误
+		Level: lvl,
+		//SubsystemLevels: map[string]log.LogLevel{
+		//	"swarm2":  log.LevelWarn,
+		//	"relay":   log.LevelWarn,
+		//	"connmgr": log.LevelWarn,
+		//	"autonat": log.LevelWarn,
+		//},
+	})
+	// 设置环境变量
+	//_ = os.Setenv("GOLOG_OUTPUT", "stdout")
+
 	nf := []p2p.NetConfigItem{
 		{IP: "47.115.215.250", Port: 9879, PeerID: "QmahyM9Sav3A5XeKVpJrfBquKc4m5YNcDze5brVhJiX3Lz"},
 		{IP: "111.172.230.157", Port: 9879, PeerID: "QmWbA97NBpe8TCw72DtLyxGdZP9FVEJuajiGPXWpgiPsZC"},
@@ -80,9 +98,9 @@ func main() {
 		fmt.Println(err.Error())
 		return
 	}
-	//credHost.SetHandler(protocol_x, ProtocolTT)
+	credHost.SetHandler(protocol_x, ProtocolTT)
 	//---------------
-	//PingTest(credHost)
+	//go PingTest(credHost)
 
 	pubSubTT(credHost)
 
@@ -119,6 +137,9 @@ func pubSubTT(credHost *p2p.CredHost) {
 		fmt.Println(err.Error())
 		return
 	}
+
+	//go publishMsg(credHost, topic)
+
 	sub, err := topic.Subscribe()
 	if err != nil {
 		fmt.Println(err.Error())
@@ -127,6 +148,18 @@ func pubSubTT(credHost *p2p.CredHost) {
 	go func() {
 		processTopic(credHost.GetContext(), sub)
 	}()
+}
+
+func publishMsg(credHost *p2p.CredHost, topic *ps.Topic) {
+	for i := 0; i < 10; i++ {
+		time.Sleep(time.Second * 30)
+		d := fmt.Sprintf("太棒了:%d", i)
+		fmt.Println("准备发送数据:", d)
+		err := topic.Publish(credHost.GetContext(), []byte(d))
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
 }
 
 func processTopic(ctx context.Context, sub *ps.Subscription) {
@@ -156,7 +189,7 @@ func ProtocolTT(st network.Stream) {
 }
 
 func PingTest(host *p2p.CredHost) {
-	peerIdStr := "12D3KooWE9ryqVqEdJN1urGThF1DzdQrkhkNF36QfD3X9MMvGb3i"
+	peerIdStr := "12D3KooWPramjK6WTaW9E5MUhJxskbUs9dBHpCownvVzYa2pvLAk"
 	peerId, _ := peer.Decode(peerIdStr)
 
 	for i := 0; i < 10; i++ {
