@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"gitee.com/credata/credp2p/p2p"
 	"github.com/ipfs/go-log/v2"
+	ps "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"io"
@@ -79,9 +80,11 @@ func main() {
 		fmt.Println(err.Error())
 		return
 	}
-	credHost.SetHandler(protocol_x, ProtocolTT)
+	//credHost.SetHandler(protocol_x, ProtocolTT)
 	//---------------
 	//PingTest(credHost)
+
+	pubSubTT(credHost)
 
 	signals := make(chan os.Signal)
 	signal.Notify(signals, os.Interrupt, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
@@ -110,6 +113,37 @@ func main() {
 	wg.Wait()
 }
 
+func pubSubTT(credHost *p2p.CredHost) {
+	topic, err := credHost.GetPubSub().Join("haha_haha")
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	sub, err := topic.Subscribe()
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	go func() {
+		processTopic(credHost.GetContext(), sub)
+	}()
+}
+
+func processTopic(ctx context.Context, sub *ps.Subscription) {
+	for {
+		m, err := sub.Next(ctx)
+		if err != nil {
+			fmt.Println("接收数据失败")
+			continue
+		}
+
+		go func(msg *ps.Message) {
+			fmt.Printf("接收到来自%s的数据:%s\n", m.ReceivedFrom.String(), string(msg.Data))
+		}(m)
+
+	}
+}
+
 func ProtocolTT(st network.Stream) {
 	fmt.Println("assssssssss")
 	_, err := io.Copy(st, st)
@@ -122,11 +156,11 @@ func ProtocolTT(st network.Stream) {
 }
 
 func PingTest(host *p2p.CredHost) {
-	peerIdStr := "12D3KooWAD5HhGmgByW5F6wQ1KzcWfYH6NnGRwXqCfdconPvwjDr"
+	peerIdStr := "12D3KooWE9ryqVqEdJN1urGThF1DzdQrkhkNF36QfD3X9MMvGb3i"
 	peerId, _ := peer.Decode(peerIdStr)
 
-	for i := 0; i < 3; i++ {
-		fmt.Printf("begin:%d", i)
+	for i := 0; i < 10; i++ {
+		fmt.Printf("begin:%d------------------------------------\n", i)
 		pInfo, err := host.FindPeer(context.Background(), peerId)
 		if err != nil {
 			fmt.Println(err.Error())
@@ -153,8 +187,10 @@ func PingTest(host *p2p.CredHost) {
 
 		fmt.Println(string(buff[:l]))
 
-		break
-
+		//break
+		fmt.Println("wait..........")
+		time.Sleep(time.Minute)
+		continue
 	}
 
 }

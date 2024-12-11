@@ -14,6 +14,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/core/routing"
+	drouting "github.com/libp2p/go-libp2p/p2p/discovery/routing"
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	tls "github.com/libp2p/go-libp2p/p2p/security/tls"
@@ -159,7 +160,11 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 	//m.DiscoveryServiceTag = Md5([]byte(serviceName))
 	//_ = m.Run(ctx, h)
 
-	pubsub, err := ps.NewGossipSub(credHost.ctx, h)
+	//pubSubOption:=[]ps.Option{
+	//	ps.with
+	//}
+
+	pubsub, err := ps.NewGossipSub(credHost.ctx, h, ps.WithDiscovery(drouting.NewRoutingDiscovery(credHost.dht)))
 	if err != nil {
 		logger.Warn(err.Error())
 		return nil, err
@@ -173,6 +178,9 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 
 func (d *CredHost) ID() peer.ID {
 	return d.host.ID()
+}
+func (d *CredHost) GetContext() context.Context {
+	return d.ctx
 }
 func (d *CredHost) isClosed() bool {
 	d.mx.Lock()
