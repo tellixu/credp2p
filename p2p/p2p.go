@@ -84,12 +84,8 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 	var opts []libp2p.Option = []libp2p.Option{
 		libp2p.Identity(privateKey),
 		libp2p.UserAgent(serviceName),
-		libp2p.EnableRelay(),
-		//libp2p.EnableHolePunching(),
 		libp2p.ListenAddrs(listenerAddr...),
-		libp2p.NATPortMap(),
-		libp2p.EnableRelay(),
-		libp2p.EnableRelayService(),
+		libp2p.Security(tls.ID, tls.New),
 		libp2p.WithDialTimeout(time.Second * 60),
 	}
 
@@ -99,9 +95,10 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 		}))
 	}
 
-	opts = append(opts, libp2p.EnableNATService(), libp2p.EnableAutoNATv2())
+	opts = append(opts, libp2p.NATPortMap(), libp2p.EnableNATService(), libp2p.EnableAutoNATv2())
 
-	opts = append(opts, libp2p.Security(tls.ID, tls.New))
+	opts = append(opts, libp2p.EnableRelay(),
+		libp2p.EnableRelayService())
 
 	opts = append(opts,
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
@@ -148,6 +145,12 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 	}
 	credHost.host = h
 
+	err = credHost.Bootstrap()
+	if err != nil {
+		logger.Warn(err.Error())
+		return nil, err
+	}
+
 	// mDns discovery
 	//m := &discovery.MDNS{}
 	//m.DiscoveryServiceTag = Md5([]byte(serviceName))
@@ -160,11 +163,7 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 	}
 	credHost.pubsub = pubsub
 	ping.NewPingService(h)
-	err = credHost.Bootstrap()
-	if err != nil {
-		logger.Warn(err.Error())
-		return nil, err
-	}
+
 	logger.Info("peer id is:", h.ID().String())
 	return credHost, nil
 }

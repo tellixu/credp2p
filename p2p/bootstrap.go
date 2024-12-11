@@ -78,6 +78,7 @@ func (d *CredHost) connectBootstrapPeers(pis []peer.AddrInfo, toconnect int) int
 
 	for _, pi := range pis {
 		if d.host.Network().Connectedness(pi.ID) == network.Connected {
+			count++
 			continue
 		}
 		err := d.host.Connect(ctx, pi)
@@ -110,6 +111,6 @@ func (d *CredHost) keepBootstrapConnections(pis []peer.AddrInfo) {
 		}
 
 		toconnect := BootstrapConnections - len(conns)
-		d.connectBootstrapPeers(pis, toconnect)
+		_ = d.connectBootstrapPeers(pis, toconnect)
 	}
 }
