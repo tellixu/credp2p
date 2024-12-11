@@ -127,7 +127,10 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 	if cfg.Reachability == ReachabilityPublic {
 		opts = append(opts, libp2p.ForceReachabilityPublic())
 	} else {
-		opts = append(opts, libp2p.ForceReachabilityPrivate())
+		if cfg.Reachability == ReachabilityPrivate {
+			opts = append(opts, libp2p.ForceReachabilityPrivate())
+		}
+
 		opts = append(opts, libp2p.EnableHolePunching())
 
 		if len(cfg.Relay) > 0 {
