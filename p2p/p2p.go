@@ -7,7 +7,6 @@ import (
 	"github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
-	ps "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -36,8 +35,8 @@ type CredHost struct {
 	cancel context.CancelFunc
 	host   host.Host
 
-	dht    *HashDht
-	pubsub *ps.PubSub
+	dht *HashDht
+	//pubsub *ps.PubSub
 
 	mx sync.Mutex
 	// closed is set when the daemon is shutting down
@@ -164,13 +163,17 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 	//}
 	// 允许使用limited连接，中继时会用到
 	//pubsub, err := ps.NewGossipSub(network.WithAllowLimitedConn(ctx, "credata_p2p_pubsub"), h, ps.WithDiscovery(drouting.NewRoutingDiscovery(credHost.dht)))
-	pubsub, err := ps.NewGossipSub(network.WithAllowLimitedConn(ctx, "credata_p2p_pubsub"), h)
-	if err != nil {
-		logger.Warn(err.Error())
-		return nil, err
-	}
-	credHost.pubsub = pubsub
+	//pubsub, err := ps.NewGossipSub(network.WithAllowLimitedConn(ctx, "credata_p2p_pubsub"), h)
+	//drouting "github.com/libp2p/go-libp2p/p2p/discovery/routing"
+	//pubsub, err := ps.NewGossipSub(network.WithAllowLimitedConn(ctx, "credata_p2p_pubsub"), h)
+	//if err != nil {
+	//	logger.Warn(err.Error())
+	//	return nil, err
+	//}
+	//credHost.pubsub = pubsub
 	ping.NewPingService(h)
+
+	//credHost.dht.PutValue()
 
 	logger.Info("peer id is:", h.ID().String())
 	return credHost, nil
@@ -234,9 +237,9 @@ func (d *CredHost) NewStream(ctx context.Context, id peer.ID, proto protocol.ID)
 	return d.host.NewStream(ctx, id, proto)
 }
 
-func (d *CredHost) GetPubSub() *ps.PubSub {
-	return d.pubsub
-}
+//func (d *CredHost) GetPubSub() *ps.PubSub {
+//	return d.pubsub
+//}
 
 func (d *CredHost) SetHandler(pid protocol.ID, handler network.StreamHandler) {
 	d.host.SetStreamHandler(pid, handler)

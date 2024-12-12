@@ -1,4 +1,4 @@
-package main
+package credp2p
 
 import (
 	"bufio"
@@ -6,14 +6,16 @@ import (
 	"fmt"
 	"gitee.com/credata/credp2p/p2p"
 	"github.com/ipfs/go-log/v2"
-	ps "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"io"
+	"net"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+	"testing"
 	"time"
 )
 
@@ -48,7 +50,24 @@ const (
 
 var logger = log.Logger("cred.sys")
 
-func main() {
+func TestP2p(t *testing.T) {
+	privateKeyStr := ""
+	aIP := ""
+
+	var id peer.ID
+	var privateKey crypto.PrivKey
+
+	if len(privateKeyStr) == 0 {
+		pkStr, _, err := p2p.GeneratePeerKey()
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
+		privateKeyStr = pkStr
+	}
+	privateKey, _ = p2p.GetPeerKey(privateKeyStr)
+	id, _ = peer.IDFromPrivateKey(privateKey)
+
 	lvl, _ := log.LevelFromString("info")
 	//log.SetAllLoggers(lvl)
 	log.SetupLogging(log.Config{
@@ -74,25 +93,33 @@ func main() {
 		{IP: "111.172.231.214", Port: 9879, PeerID: "QmaDrFaUWRDGVhTbj4gAof28Xx1Qx8eiUEBEHY3MAqYJVV"},
 		{IP: "111.172.231.11", Port: 9879, PeerID: "Qmc8xtLak9mL3PCZMmzUw4BSAXGyieKe4XxmgAttWNRjKx"},
 		{IP: "111.172.230.94", Port: 9879, PeerID: "QmShf1MZLQdKCZ9htzbsWNTZLA8QRFqBR3LBZzquSqVJbr"},
+		{IP: "111.172.230.157", Port: 4001, PeerID: "12D3KooWNymsA4TmvpCb6rwE3ukkd2jSJJ84iS56pneHXW1t1gJA"},
 	}
 	cfg := &p2p.Config{
-		Reachability:  p2p.ReachabilityPrivate,
+		//Reachability:  p2p.ReachabilityPrivate,
 		DhtMode:       p2p.DhtModeClient,
 		Relay:         nf,
 		BootstrapAddr: nf,
 		P2pPort:       4001,
 	}
 
-	privateKeyStr, id, err := p2p.GeneratePeerKey()
-	if err != nil {
-		fmt.Println(err.Error())
-		return
+	if len(aIP) > 0 {
+		lip := net.ParseIP(aIP)
+		if lip != nil {
+			// 合法的ip
+			cfg.AnnounceAddresses = []p2p.NetConfigItem{
+				{IP: lip.String(), Port: cfg.P2pPort, PeerID: id.String()},
+			}
+		}
 	}
-	fmt.Println("id=", id)
+
+	//privateKeyStr := "CAESQPui0qScWmt/9vbmm4GIFMDygm6KyZp88DwAySI3t8FWw5Dzi2TWxE/KQ9o9Tf2YRD+yXXpuf7XD6F2AZbDAPM8="
+
+	fmt.Println("id=", id.String())
+	fmt.Println("private:", privateKeyStr)
 
 	newCtx, cancel := context.WithCancel(context.Background())
 
-	privateKey, _ := p2p.GetPeerKey(privateKeyStr)
 	credHost, err := p2p.NewHost(newCtx, privateKey, cfg)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -102,7 +129,7 @@ func main() {
 	//---------------
 	//go PingTest(credHost)
 
-	pubSubTT(credHost)
+	//pubSubTT(credHost)
 
 	signals := make(chan os.Signal)
 	signal.Notify(signals, os.Interrupt, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
@@ -131,51 +158,54 @@ func main() {
 	wg.Wait()
 }
 
-func pubSubTT(credHost *p2p.CredHost) {
-	topic, err := credHost.GetPubSub().Join("haha_haha")
-	if err != nil {
-		fmt.Println(err.Error())
-		return
-	}
-
-	//go publishMsg(credHost, topic)
-
-	sub, err := topic.Subscribe()
-	if err != nil {
-		fmt.Println(err.Error())
-		return
-	}
-	go func() {
-		processTopic(credHost.GetContext(), sub)
-	}()
-}
-
-func publishMsg(credHost *p2p.CredHost, topic *ps.Topic) {
-	for i := 0; i < 10; i++ {
-		time.Sleep(time.Second * 30)
-		d := fmt.Sprintf("太棒了:%d", i)
-		fmt.Println("准备发送数据:", d)
-		err := topic.Publish(credHost.GetContext(), []byte(d))
-		if err != nil {
-			fmt.Println(err)
-		}
-	}
-}
-
-func processTopic(ctx context.Context, sub *ps.Subscription) {
-	for {
-		m, err := sub.Next(ctx)
-		if err != nil {
-			fmt.Println("接收数据失败")
-			continue
-		}
-
-		go func(msg *ps.Message) {
-			fmt.Printf("接收到来自%s的数据:%s\n", m.ReceivedFrom.String(), string(msg.Data))
-		}(m)
-
-	}
-}
+//
+//func pubSubTT(credHost *p2p.CredHost) {
+//	topic, err := credHost.GetPubSub().Join("haha_haha")
+//	if err != nil {
+//		fmt.Println(err.Error())
+//		return
+//	}
+//	// 该主题为中继主题
+//	_, _ = topic.Relay()
+//
+//	//go publishMsg(credHost, topic)
+//
+//	sub, err := topic.Subscribe()
+//	if err != nil {
+//		fmt.Println(err.Error())
+//		return
+//	}
+//	go func() {
+//		processTopic(credHost.GetContext(), sub)
+//	}()
+//}
+//
+//func publishMsg(credHost *p2p.CredHost, topic *ps.Topic) {
+//	for i := 0; i < 100; i++ {
+//		time.Sleep(time.Second * 30)
+//		d := fmt.Sprintf("太棒了:%d", i)
+//		fmt.Println("准备发送数据:", d)
+//		err := topic.Publish(credHost.GetContext(), []byte(d))
+//		if err != nil {
+//			fmt.Println(err)
+//		}
+//	}
+//}
+//
+//func processTopic(ctx context.Context, sub *ps.Subscription) {
+//	for {
+//		m, err := sub.Next(ctx)
+//		if err != nil {
+//			fmt.Println("接收数据失败")
+//			continue
+//		}
+//
+//		go func(msg *ps.Message) {
+//			fmt.Printf("接收到来自%s的数据:%s\n", m.ReceivedFrom.String(), string(msg.Data))
+//		}(m)
+//
+//	}
+//}
 
 func ProtocolTT(st network.Stream) {
 	fmt.Println("assssssssss")
