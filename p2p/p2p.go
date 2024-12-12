@@ -3,6 +3,7 @@ package p2p
 import (
 	"context"
 	"fmt"
+	"gitee.com/credata/credp2p/p2p/discovery"
 	"github.com/hashicorp/go-multierror"
 	"github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
@@ -154,9 +155,9 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 	}
 
 	// mDns discovery
-	//m := &discovery.MDNS{}
-	//m.DiscoveryServiceTag = Md5([]byte(serviceName))
-	//_ = m.Run(ctx, h)
+	m := &discovery.MDNS{}
+	m.DiscoveryServiceTag = Md5([]byte(serviceName))
+	_ = m.Run(ctx, h)
 
 	//pubSubOption:=[]ps.Option{
 	//	ps.with
