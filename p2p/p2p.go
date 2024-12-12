@@ -31,6 +31,14 @@ var (
 	serviceName = "cred_p2p/1.0"
 )
 
+func SetServiceName(sn string) {
+	serviceName = sn
+}
+
+func GetServiceName() string {
+	return serviceName
+}
+
 type CredHost struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -54,7 +62,12 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 		logger.Warn("BootstrapAddr is empty")
 		return nil, fmt.Errorf("BootstrapAddr is empty")
 	}
-	BootstrapPeers = cfg.GetBootstrapAddr()
+	bootPeers, err := cfg.BootstrapAddr.ToMultiaddr()
+	if err != nil {
+		logger.Warn("BootstrapAddr is fail")
+		return nil, err
+	}
+	BootstrapPeers = bootPeers
 
 	ctx, cancel := context.WithCancel(ctx)
 	credHost := &CredHost{
@@ -64,34 +77,46 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 		CryptoKey: NewCryptoKeyInfo(privateKey),
 	}
 
-	listenerAddStrs := []string{
-		fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", cfg.P2pPort),         // tcp连接
-		fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1", cfg.P2pPort), // 用于QUIC传输的UDP端点
-		//fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1/webtransport", cfg.P2pPort), // 用于QUIC传输的UDP端点
-
-		// :: 格式的ipv6，支持所有的ipv4和ipv6的访问
-		fmt.Sprintf("/ip6/::/tcp/%d", cfg.P2pPort),         // tcp连接
-		fmt.Sprintf("/ip6/::/udp/%d/quic-v1", cfg.P2pPort), // 用于QUIC传输的UDP端点
-		//fmt.Sprintf("/ip6/::/udp/%d/quic-v1/webtransport", cfg.P2pPort), // 用于QUIC传输的UDP端点
-	}
-
-	listenerAddr, err := ToMAddr(listenerAddStrs)
-	if err != nil {
-		logger.Warn(err.Error())
-		return nil, err
-	}
+	//listenerAddStrs := []string{
+	//	fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", cfg.P2pPort),         // tcp连接
+	//	fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1", cfg.P2pPort), // 用于QUIC传输的UDP端点
+	//	fmt.Sprintf("/ip4/0.0.0.0/tcp/%d/ws", cfg.P2pPort),      // websocket
+	//
+	//	// :: 格式的ipv6，支持所有的ipv4和ipv6的访问
+	//	fmt.Sprintf("/ip6/::/tcp/%d", cfg.P2pPort),         // tcp连接
+	//	fmt.Sprintf("/ip6/::/udp/%d/quic-v1", cfg.P2pPort), // 用于QUIC传输的UDP端点
+	//	fmt.Sprintf("/ip6/::/tcp/%d/ws", cfg.P2pPort),      // websocket
+	//}
 
 	var opts []libp2p.Option = []libp2p.Option{
 		libp2p.Identity(privateKey),
 		libp2p.UserAgent(serviceName),
-		libp2p.ListenAddrs(listenerAddr...),
+		//libp2p.ListenAddrs(listenerAddr...),
 		libp2p.Security(tls.ID, tls.New),
 		libp2p.WithDialTimeout(time.Second * 60),
+		libp2p.DefaultTransports,
+	}
+
+	if len(cfg.Listener) == 0 {
+		opts = append(opts, libp2p.NoListenAddrs)
+	} else {
+		listenerAddr, err := cfg.Listener.ToMultiaddr()
+		if err != nil {
+			logger.Warn(err.Error())
+			return nil, err
+		}
+		opts = append(opts, libp2p.ListenAddrs(listenerAddr...))
 	}
 
 	if len(cfg.AnnounceAddresses) > 0 {
+		announceAddr, err := cfg.AnnounceAddresses.ToMultiaddr()
+		if err != nil {
+			logger.Warn(err.Error())
+			return nil, err
+		}
 		opts = append(opts, libp2p.AddrsFactory(func([]multiaddr.Multiaddr) []multiaddr.Multiaddr {
-			return cfg.GetAnnounceAddresses()
+
+			return announceAddr
 		}))
 	}
 
@@ -134,9 +159,14 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 		opts = append(opts, libp2p.EnableHolePunching())
 
 		if len(cfg.Relay) > 0 {
-			relayAddrInfos := GetPeerAddrInfos(cfg.GetRelayAddr())
+			relayAddr, err := cfg.Relay.ToAddrInfos()
+			if err != nil {
+				logger.Warn(err.Error())
+				return nil, err
+			}
+			//relayAddrInfos := GetPeerAddrInfos(cfg.GetRelayAddr())
 			opts = append(opts, libp2p.EnableAutoRelayWithStaticRelays(
-				relayAddrInfos,
+				relayAddr,
 				autorelay.WithBootDelay(20*time.Second),
 			))
 		}

@@ -9,6 +9,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/multiformats/go-multiaddr"
 	"io"
 	"net"
 	"os"
@@ -50,6 +51,112 @@ const (
 
 var logger = log.Logger("cred.sys")
 
+type ListenerOption struct {
+	Port       int      `json:"port" yaml:"port"`
+	Transports []string `json:"transports" yaml:"transports"` // tcp,udp,ws,webtransport,webrtc
+}
+
+func (t *ListenerOption) GetListener() []string {
+	listenerAddStrs := make([]string, 0)
+	protocolSize := len(t.Transports)
+	if protocolSize == 0 {
+		return listenerAddStrs
+	}
+
+	//fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", cfg.P2pPort),         // tcp连接
+	//fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1", cfg.P2pPort), // 用于QUIC传输的UDP端点
+	//fmt.Sprintf("/ip4/0.0.0.0/tcp/%d/ws", cfg.P2pPort),      // websocket
+	///ip4/1.2.3.4/udp/1/quic-v1/webrtc-direct
+
+	//// :: 格式的ipv6，支持所有的ipv4和ipv6的访问
+	//fmt.Sprintf("/ip6/::/tcp/%d", cfg.P2pPort),         // tcp连接
+	//fmt.Sprintf("/ip6/::/udp/%d/quic-v1", cfg.P2pPort), // 用于QUIC传输的UDP端点
+	//fmt.Sprintf("/ip6/::/tcp/%d/ws", cfg.P2pPort),      // websocket
+	//fmt.Sprintf("/ip6/::/udp/%d/quic-v1/webtransport", cfg.P2pPort), // 用于QUIC传输的UDP端点
+	for i := 0; i < protocolSize; i++ {
+		switch t.Transports[i] {
+		case "tcp":
+			listenerAddStrs = append(listenerAddStrs,
+				fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", t.Port),
+				fmt.Sprintf("/ip6/::/tcp/%d", t.Port))
+		case "udp":
+			listenerAddStrs = append(listenerAddStrs,
+				fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1", t.Port),
+				fmt.Sprintf("/ip6/::/udp/%d/quic-v1", t.Port))
+		case "webtransport":
+			listenerAddStrs = append(listenerAddStrs,
+				fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1/webtransport", t.Port),
+				fmt.Sprintf("/ip6/::/udp/%d/quic-v1/webtransport", t.Port))
+		case "webrtc":
+			listenerAddStrs = append(listenerAddStrs,
+				fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1/webrtc-direct", t.Port),
+				fmt.Sprintf("/ip4/::/udp/%d/quic-v1/webrtc-direct", t.Port))
+		}
+	}
+
+	return listenerAddStrs
+}
+
+type NetConfigItem struct {
+	IP     string `json:"ip" yaml:"ip"`
+	Port   int    `json:"port" yaml:"port"`
+	PeerID string `json:"peer_id" yaml:"peer_id"`
+}
+
+func (that *NetConfigItem) ToMultiaddrs() []multiaddr.Multiaddr {
+	addrs := make([]multiaddr.Multiaddr, 0)
+	if len(that.PeerID) == 0 {
+		return addrs
+	}
+
+	ip := net.ParseIP(that.IP)
+	if ip == nil {
+		// 缺少ip地址，仅使用peerId构建multiaddr.Multiaddr对象
+		m1Str := fmt.Sprintf("/p2p/%s", that.PeerID)
+		ma, err := multiaddr.NewMultiaddr(m1Str)
+		if err != nil {
+			return addrs
+		}
+		addrs = append(addrs, ma)
+		return addrs
+	} else {
+		// 存在ip地址，构建完整的multiaddr.Multiaddr对象
+		ipType := "ip4"
+		if ip.To4() != nil {
+			ipType = "ip4"
+		} else if ip.To16() != nil {
+			ipType = "ip6"
+		}
+
+		m1Str := fmt.Sprintf("/%s/%s/tcp/%d/p2p/%s", ipType, that.IP, that.Port, that.PeerID)
+		m2Str := fmt.Sprintf("/%s/%s/udp/%d/quic-v1/p2p/%s", ipType, that.IP, that.Port, that.PeerID)
+		//m3Str := fmt.Sprintf("/%s/%s/udp/%d/quic-v1/p2p/%s", ipType, that.IP, that.Port, that.PeerID)
+		ma, err := multiaddr.NewMultiaddr(m1Str)
+		if err != nil {
+			return addrs
+		}
+
+		addrs = append(addrs, ma)
+		ma, err = multiaddr.NewMultiaddr(m2Str)
+		if err != nil {
+			return addrs
+		}
+		addrs = append(addrs, ma)
+		return addrs
+	}
+}
+
+func convertMulAddrArr(itemArr []NetConfigItem) p2p.MulAddrArr {
+	var addrs p2p.MulAddrArr
+	for _, item := range itemArr {
+		multiAddrArr := item.ToMultiaddrs()
+		for _, multiAddr := range multiAddrArr {
+			addrs = append(addrs, multiAddr.String())
+		}
+	}
+	return addrs
+}
+
 func TestP2p(t *testing.T) {
 	privateKeyStr := ""
 	aIP := ""
@@ -86,7 +193,7 @@ func TestP2p(t *testing.T) {
 	// 设置环境变量
 	//_ = os.Setenv("GOLOG_OUTPUT", "stdout")
 
-	nf := []p2p.NetConfigItem{
+	nf := []NetConfigItem{
 		{IP: "47.115.215.250", Port: 9879, PeerID: "QmahyM9Sav3A5XeKVpJrfBquKc4m5YNcDze5brVhJiX3Lz"},
 		{IP: "111.172.230.157", Port: 9879, PeerID: "QmWbA97NBpe8TCw72DtLyxGdZP9FVEJuajiGPXWpgiPsZC"},
 		{IP: "111.172.230.27", Port: 9879, PeerID: "QmaQPiFw6Uv4PJEQ17JQ5rMQYRLF2J5bE3AULsuM4cDe9N"},
@@ -95,21 +202,28 @@ func TestP2p(t *testing.T) {
 		{IP: "111.172.230.94", Port: 9879, PeerID: "QmShf1MZLQdKCZ9htzbsWNTZLA8QRFqBR3LBZzquSqVJbr"},
 		{IP: "111.172.230.157", Port: 4001, PeerID: "12D3KooWNymsA4TmvpCb6rwE3ukkd2jSJJ84iS56pneHXW1t1gJA"},
 	}
+
+	multiaddrList := convertMulAddrArr(nf)
+
 	cfg := &p2p.Config{
 		//Reachability:  p2p.ReachabilityPrivate,
 		DhtMode:       p2p.DhtModeClient,
-		Relay:         nf,
-		BootstrapAddr: nf,
-		P2pPort:       4001,
+		Relay:         multiaddrList,
+		BootstrapAddr: multiaddrList,
+		//P2pPort:       4001,
+		//Listener: &p2p.ListenerOption{
+		//	Port: 4001,
+		//},
 	}
 
 	if len(aIP) > 0 {
 		lip := net.ParseIP(aIP)
 		if lip != nil {
 			// 合法的ip
-			cfg.AnnounceAddresses = []p2p.NetConfigItem{
-				{IP: lip.String(), Port: cfg.P2pPort, PeerID: id.String()},
+			annAddrList := []NetConfigItem{
+				{IP: lip.String(), Port: 4001, PeerID: id.String()},
 			}
+			cfg.AnnounceAddresses = convertMulAddrArr(annAddrList)
 		}
 	}
 
@@ -236,7 +350,7 @@ func PingTest(host *p2p.CredHost) {
 		}
 		st, err := host.NewStream(context.Background(), peerId, protocol_x)
 		if err != nil {
-			fmt.Println(err.Error)
+			fmt.Println(err.Error())
 			return
 		}
 		_, _ = st.Write([]byte("hello"))
@@ -244,7 +358,7 @@ func PingTest(host *p2p.CredHost) {
 		buff := make([]byte, 1024)
 		l, err := r.Read(buff)
 		if err != nil {
-			fmt.Println(err.Error)
+			fmt.Println(err.Error())
 			return
 		}
 

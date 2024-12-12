@@ -1,9 +1,8 @@
 package p2p
 
 import (
-	"fmt"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
-	"net"
 )
 
 const (
@@ -14,53 +13,34 @@ const (
 	DhtModeClient = "client"
 )
 
-type NetConfigItem struct {
-	IP     string `json:"ip" yaml:"ip"`
-	Port   int    `json:"port" yaml:"port"`
-	PeerID string `json:"peer_id" yaml:"peer_id"`
+type MulAddrArr []string
+
+func (t MulAddrArr) ToMultiaddr() ([]multiaddr.Multiaddr, error) {
+
+	addrs := make([]multiaddr.Multiaddr, 0)
+	for _, addr := range t {
+		ma, err := multiaddr.NewMultiaddr(addr)
+		if err != nil {
+			return nil, err
+		}
+		addrs = append(addrs, ma)
+	}
+
+	return addrs, nil
 }
 
-func (that *NetConfigItem) ToMultiaddrs() []multiaddr.Multiaddr {
+func (t MulAddrArr) ToAddrInfos() ([]peer.AddrInfo, error) {
+
 	addrs := make([]multiaddr.Multiaddr, 0)
-	if len(that.PeerID) == 0 {
-		return addrs
+	for _, addr := range t {
+		ma, err := multiaddr.NewMultiaddr(addr)
+		if err != nil {
+			return nil, err
+		}
+		addrs = append(addrs, ma)
 	}
 
-	ip := net.ParseIP(that.IP)
-	if ip == nil {
-		// 缺少ip地址，仅使用peerId构建multiaddr.Multiaddr对象
-		m1Str := fmt.Sprintf("/p2p/%s", that.PeerID)
-		ma, err := multiaddr.NewMultiaddr(m1Str)
-		if err != nil {
-			return addrs
-		}
-		addrs = append(addrs, ma)
-		return addrs
-	} else {
-		// 存在ip地址，构建完整的multiaddr.Multiaddr对象
-		ipType := "ip4"
-		if ip.To4() != nil {
-			ipType = "ip4"
-		} else if ip.To16() != nil {
-			ipType = "ip6"
-		}
-
-		m1Str := fmt.Sprintf("/%s/%s/tcp/%d/p2p/%s", ipType, that.IP, that.Port, that.PeerID)
-		m2Str := fmt.Sprintf("/%s/%s/udp/%d/quic-v1/p2p/%s", ipType, that.IP, that.Port, that.PeerID)
-		//m3Str := fmt.Sprintf("/%s/%s/udp/%d/quic-v1/p2p/%s", ipType, that.IP, that.Port, that.PeerID)
-		ma, err := multiaddr.NewMultiaddr(m1Str)
-		if err != nil {
-			return addrs
-		}
-
-		addrs = append(addrs, ma)
-		ma, err = multiaddr.NewMultiaddr(m2Str)
-		if err != nil {
-			return addrs
-		}
-		addrs = append(addrs, ma)
-		return addrs
-	}
+	return peer.AddrInfosFromP2pAddrs(addrs...)
 }
 
 type Config struct {
@@ -69,33 +49,34 @@ type Config struct {
 	//# private：私网，可能通过nat，中继节点等连接
 	Reachability string `yaml:"reachability"`
 	// dht模式，默认为client,server,full
-	DhtMode           string          `yaml:"dht_mode" json:"dht_mode"`
-	Relay             []NetConfigItem `yaml:"relay"` // 中继id
-	BootstrapAddr     []NetConfigItem `yaml:"bootstrap_addr"`
-	AnnounceAddresses []NetConfigItem `yaml:"announce_addr" json:"announce_addr"`
+	DhtMode           string     `yaml:"dht_mode" json:"dht_mode"`
+	Relay             MulAddrArr `yaml:"relay" json:"relay"` // 中继id
+	BootstrapAddr     MulAddrArr `yaml:"bootstrap_addr" json:"bootstrap_addr"`
+	AnnounceAddresses MulAddrArr `yaml:"announce_addr" json:"announce_addr"`
 
-	P2pPort int `yaml:"p2p_port" json:"p2p_port"`
-}
-
-func (that *Config) GetAnnounceAddresses() []multiaddr.Multiaddr {
-	addrs := make([]multiaddr.Multiaddr, 0)
-	for _, addr := range that.AnnounceAddresses {
-		addrs = append(addrs, addr.ToMultiaddrs()...)
-	}
-	return addrs
+	Listener MulAddrArr `json:"listener" yaml:"listener"`
 }
 
-func (that *Config) GetBootstrapAddr() []multiaddr.Multiaddr {
-	addrs := make([]multiaddr.Multiaddr, 0)
-	for _, addr := range that.BootstrapAddr {
-		addrs = append(addrs, addr.ToMultiaddrs()...)
-	}
-	return addrs
-}
-func (that *Config) GetRelayAddr() []multiaddr.Multiaddr {
-	addrs := make([]multiaddr.Multiaddr, 0)
-	for _, addr := range that.Relay {
-		addrs = append(addrs, addr.ToMultiaddrs()...)
-	}
-	return addrs
-}
+//
+//func (that *Config) GetAnnounceAddresses() []multiaddr.Multiaddr {
+//	addrs := make([]multiaddr.Multiaddr, 0)
+//	for _, addr := range that.AnnounceAddresses {
+//		addrs = append(addrs, addr.ToMultiaddrs()...)
+//	}
+//	return addrs
+//}
+//
+//func (that *Config) GetBootstrapAddr() []multiaddr.Multiaddr {
+//	addrs := make([]multiaddr.Multiaddr, 0)
+//	for _, addr := range that.BootstrapAddr {
+//		addrs = append(addrs, addr.ToMultiaddrs()...)
+//	}
+//	return addrs
+//}
+//func (that *Config) GetRelayAddr() []multiaddr.Multiaddr {
+//	addrs := make([]multiaddr.Multiaddr, 0)
+//	for _, addr := range that.Relay {
+//		addrs = append(addrs, addr.ToMultiaddrs()...)
+//	}
+//	return addrs
+//}
