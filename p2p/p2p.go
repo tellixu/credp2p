@@ -3,7 +3,6 @@ package p2p
 import (
 	"context"
 	"fmt"
-	"gitee.com/credata/credp2p/p2p/discovery"
 	"github.com/hashicorp/go-multierror"
 	"github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
@@ -18,6 +17,7 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	tls "github.com/libp2p/go-libp2p/p2p/security/tls"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/tellixu/credp2p/p2p/discovery"
 	"os"
 	"os/signal"
 	"sync"

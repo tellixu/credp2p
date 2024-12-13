@@ -1,6 +1,8 @@
-module gitee.com/credata/credp2p
+module github.com/tellixu/credp2p
 
-go 1.23.2
+go 1.22.0
+
+toolchain go1.23.2
 
 require (
 	github.com/ipfs/go-log v1.0.5
