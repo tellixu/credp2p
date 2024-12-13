@@ -108,18 +108,6 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 		opts = append(opts, libp2p.ListenAddrs(listenerAddr...))
 	}
 
-	if len(cfg.AnnounceAddresses) > 0 {
-		announceAddr, err := cfg.AnnounceAddresses.ToMultiaddr()
-		if err != nil {
-			logger.Warn(err.Error())
-			return nil, err
-		}
-		opts = append(opts, libp2p.AddrsFactory(func([]multiaddr.Multiaddr) []multiaddr.Multiaddr {
-
-			return announceAddr
-		}))
-	}
-
 	opts = append(opts, libp2p.NATPortMap(), libp2p.EnableNATService(), libp2p.EnableAutoNATv2())
 
 	opts = append(opts, libp2p.EnableRelay(),
@@ -149,13 +137,18 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 		}),
 	)
 
-	if cfg.Reachability == ReachabilityPublic {
+	if len(cfg.AnnounceAddresses) > 0 {
+		// 定义为public可达
 		opts = append(opts, libp2p.ForceReachabilityPublic())
-	} else {
-		if cfg.Reachability == ReachabilityPrivate {
-			opts = append(opts, libp2p.ForceReachabilityPrivate())
+		announceAddr, err := cfg.AnnounceAddresses.ToMultiaddr()
+		if err != nil {
+			logger.Warn(err.Error())
+			return nil, err
 		}
-
+		opts = append(opts, libp2p.AddrsFactory(func([]multiaddr.Multiaddr) []multiaddr.Multiaddr {
+			return announceAddr
+		}))
+	} else {
 		opts = append(opts, libp2p.EnableHolePunching())
 
 		if len(cfg.Relay) > 0 {

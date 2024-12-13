@@ -44,17 +44,12 @@ func (t MulAddrArr) ToAddrInfos() ([]peer.AddrInfo, error) {
 }
 
 type Config struct {
-	//# 网络 reachability：public，private
-	//# public：公网可达
-	//# private：私网，可能通过nat，中继节点等连接
-	Reachability string `yaml:"reachability"`
 	// dht模式，默认为client,server,full
 	DhtMode           string     `yaml:"dht_mode" json:"dht_mode"`
 	Relay             MulAddrArr `yaml:"relay" json:"relay"` // 中继id
 	BootstrapAddr     MulAddrArr `yaml:"bootstrap_addr" json:"bootstrap_addr"`
 	AnnounceAddresses MulAddrArr `yaml:"announce_addr" json:"announce_addr"`
-
-	Listener MulAddrArr `json:"listener" yaml:"listener"`
+	Listener          MulAddrArr `json:"listener" yaml:"listener"`
 }
 
 //
