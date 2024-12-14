@@ -94,6 +94,8 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 		//libp2p.ListenAddrs(listenerAddr...),
 		libp2p.Security(tls.ID, tls.New),
 		libp2p.WithDialTimeout(time.Second * 60),
+		libp2p.EnableHolePunching(),
+		libp2p.EnableRelay(),
 		libp2p.DefaultTransports,
 	}
 
@@ -106,62 +108,60 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 			return nil, err
 		}
 		opts = append(opts, libp2p.ListenAddrs(listenerAddr...))
-	}
 
-	opts = append(opts, libp2p.NATPortMap(), libp2p.EnableNATService(), libp2p.EnableAutoNATv2())
+		opts = append(opts, libp2p.NATPortMap(), libp2p.EnableNATService(), libp2p.EnableAutoNATv2())
 
-	opts = append(opts, libp2p.EnableRelay(),
-		libp2p.EnableRelayService())
+		opts = append(opts,
+			libp2p.EnableRelayService())
 
-	opts = append(opts,
-		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
-			dhtBootPeer := GetPeerAddrInfos(BootstrapPeers)
+		opts = append(opts,
+			libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
+				dhtBootPeer := GetPeerAddrInfos(BootstrapPeers)
 
-			dhtopts := []dht.Option{
-				//dht.Mode(dht.ModeClient),
-				dht.BootstrapPeers(dhtBootPeer...),
-			}
+				dhtopts := []dht.Option{
+					//dht.Mode(dht.ModeClient),
+					dht.BootstrapPeers(dhtBootPeer...),
+				}
 
-			if cfg.DhtMode == DhtModeServer {
-				dhtopts = append(dhtopts, dht.Mode(dht.ModeServer))
-			} else if cfg.DhtMode == DhtModeClient {
-				dhtopts = append(dhtopts, dht.Mode(dht.ModeClient))
-			}
+				if cfg.DhtMode == DhtModeServer {
+					dhtopts = append(dhtopts, dht.Mode(dht.ModeServer))
+				} else if cfg.DhtMode == DhtModeClient {
+					dhtopts = append(dhtopts, dht.Mode(dht.ModeClient))
+				}
 
-			idht, err := dht.New(ctx, h, dhtopts...)
-			//if err == nil {
-			//	idht.Bootstrap(rootCtx)
-			//}
-			credHost.dht = &HashDht{IpfsDHT: idht}
-			return idht, err
-		}),
-	)
+				idht, err := dht.New(ctx, h, dhtopts...)
+				//if err == nil {
+				//	idht.Bootstrap(rootCtx)
+				//}
+				credHost.dht = &HashDht{IpfsDHT: idht}
+				return idht, err
+			}),
+		)
 
-	if len(cfg.AnnounceAddresses) > 0 {
-		// 定义为public可达
-		opts = append(opts, libp2p.ForceReachabilityPublic())
-		announceAddr, err := cfg.AnnounceAddresses.ToMultiaddr()
-		if err != nil {
-			logger.Warn(err.Error())
-			return nil, err
-		}
-		opts = append(opts, libp2p.AddrsFactory(func([]multiaddr.Multiaddr) []multiaddr.Multiaddr {
-			return announceAddr
-		}))
-	} else {
-		opts = append(opts, libp2p.EnableHolePunching())
-
-		if len(cfg.Relay) > 0 {
-			relayAddr, err := cfg.Relay.ToAddrInfos()
+		if len(cfg.AnnounceAddresses) > 0 {
+			// 定义为public可达
+			opts = append(opts, libp2p.ForceReachabilityPublic())
+			announceAddr, err := cfg.AnnounceAddresses.ToMultiaddr()
 			if err != nil {
 				logger.Warn(err.Error())
 				return nil, err
 			}
-			//relayAddrInfos := GetPeerAddrInfos(cfg.GetRelayAddr())
-			opts = append(opts, libp2p.EnableAutoRelayWithStaticRelays(
-				relayAddr,
-				autorelay.WithBootDelay(20*time.Second),
-			))
+			opts = append(opts, libp2p.AddrsFactory(func([]multiaddr.Multiaddr) []multiaddr.Multiaddr {
+				return announceAddr
+			}))
+		} else {
+			if len(cfg.Relay) > 0 {
+				relayAddr, err := cfg.Relay.ToAddrInfos()
+				if err != nil {
+					logger.Warn(err.Error())
+					return nil, err
+				}
+				//relayAddrInfos := GetPeerAddrInfos(cfg.GetRelayAddr())
+				opts = append(opts, libp2p.EnableAutoRelayWithStaticRelays(
+					relayAddr,
+					autorelay.WithBootDelay(20*time.Second),
+				))
+			}
 		}
 	}
 	// 添加访问控制
@@ -178,34 +178,33 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 	}
 	credHost.host = h
 
-	err = credHost.Bootstrap()
-	if err != nil {
-		logger.Warn(err.Error())
-		return nil, err
+	if len(cfg.Listener) > 0 {
+		err = credHost.Bootstrap()
+		if err != nil {
+			logger.Warn(err.Error())
+			return nil, err
+		}
+
+		// mDns discovery
+		m := &discovery.MDNS{}
+		m.DiscoveryServiceTag = Md5([]byte(serviceName))
+		_ = m.Run(ctx, h)
+
+		//pubSubOption:=[]ps.Option{
+		//	ps.with
+		//}
+		// 允许使用limited连接，中继时会用到
+		//pubsub, err := ps.NewGossipSub(network.WithAllowLimitedConn(ctx, "credata_p2p_pubsub"), h, ps.WithDiscovery(drouting.NewRoutingDiscovery(credHost.dht)))
+		//pubsub, err := ps.NewGossipSub(network.WithAllowLimitedConn(ctx, "credata_p2p_pubsub"), h)
+		//drouting "github.com/libp2p/go-libp2p/p2p/discovery/routing"
+		//pubsub, err := ps.NewGossipSub(network.WithAllowLimitedConn(ctx, "credata_p2p_pubsub"), h)
+		//if err != nil {
+		//	logger.Warn(err.Error())
+		//	return nil, err
+		//}
+		//credHost.pubsub = pubsub
+		ping.NewPingService(h)
 	}
-
-	// mDns discovery
-	m := &discovery.MDNS{}
-	m.DiscoveryServiceTag = Md5([]byte(serviceName))
-	_ = m.Run(ctx, h)
-
-	//pubSubOption:=[]ps.Option{
-	//	ps.with
-	//}
-	// 允许使用limited连接，中继时会用到
-	//pubsub, err := ps.NewGossipSub(network.WithAllowLimitedConn(ctx, "credata_p2p_pubsub"), h, ps.WithDiscovery(drouting.NewRoutingDiscovery(credHost.dht)))
-	//pubsub, err := ps.NewGossipSub(network.WithAllowLimitedConn(ctx, "credata_p2p_pubsub"), h)
-	//drouting "github.com/libp2p/go-libp2p/p2p/discovery/routing"
-	//pubsub, err := ps.NewGossipSub(network.WithAllowLimitedConn(ctx, "credata_p2p_pubsub"), h)
-	//if err != nil {
-	//	logger.Warn(err.Error())
-	//	return nil, err
-	//}
-	//credHost.pubsub = pubsub
-	ping.NewPingService(h)
-
-	//credHost.dht.PutValue()
-
 	logger.Info("peer id is:", h.ID().String())
 	return credHost, nil
 }
@@ -233,8 +232,10 @@ func (d *CredHost) Close() error {
 	if err := d.host.Close(); err != nil {
 		merr = multierror.Append(err)
 	}
-
-	return merr.ErrorOrNil()
+	if merr != nil {
+		return merr.ErrorOrNil()
+	}
+	return nil
 }
 
 func (d *CredHost) IsConnected(peerID peer.ID) bool {
