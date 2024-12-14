@@ -101,6 +101,25 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 
 	if len(cfg.Listener) == 0 {
 		opts = append(opts, libp2p.NoListenAddrs)
+		if len(cfg.BootstrapAddr) > 0 {
+			opts = append(opts,
+				libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
+					dhtBootPeer := GetPeerAddrInfos(BootstrapPeers)
+
+					dhtopts := []dht.Option{
+						dht.Mode(dht.ModeClient),
+						dht.BootstrapPeers(dhtBootPeer...),
+					}
+
+					idht, err := dht.New(ctx, h, dhtopts...)
+					//if err == nil {
+					//	idht.Bootstrap(rootCtx)
+					//}
+					credHost.dht = &HashDht{IpfsDHT: idht}
+					return idht, err
+				}),
+			)
+		}
 	} else {
 		listenerAddr, err := cfg.Listener.ToMultiaddr()
 		if err != nil {
