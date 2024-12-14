@@ -164,6 +164,13 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 			))
 		}
 	}
+	// 添加访问控制
+	acl, err := NewACL(&cfg.ACL)
+	if err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+	opts = append(opts, libp2p.ConnectionGater(acl))
 
 	h, err := libp2p.New(opts...)
 	if err != nil {
