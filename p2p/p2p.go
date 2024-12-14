@@ -212,6 +212,11 @@ func NewHost(ctx context.Context, privateKey crypto.PrivKey, cfg *Config) (*Cred
 func (d *CredHost) ID() peer.ID {
 	return d.host.ID()
 }
+
+func (d *CredHost) GetHost() host.Host {
+	return d.host
+}
+
 func (d *CredHost) GetContext() context.Context {
 	return d.ctx
 }
