@@ -276,6 +276,10 @@ func (d *CredHost) FindPeer(ctx context.Context, peerId peer.ID) (peer.AddrInfo,
 	return peerAddrInfo, nil
 }
 
+func (d *CredHost) Connect(ctx context.Context, pi peer.AddrInfo) error {
+	return d.host.Connect(ctx, pi)
+}
+
 // NewStream 创建一个流，如果创建失败，则重新从dht中获取，再进行连接
 func (d *CredHost) NewStream(ctx context.Context, id peer.ID, proto protocol.ID) (network.Stream, error) {
 	if !d.IsConnected(id) {
